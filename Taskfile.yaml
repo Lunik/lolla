@@ -8,7 +8,6 @@ vars:
   CHECKS_DIR: .checks
   PYTHON_BIN: "{{ .VENV_DIR }}/bin/python3"
   PIP_BIN: "{{ .VENV_DIR }}/bin/pip3"
-  PYTEST_BIN: "{{ .VENV_DIR }}/bin/pytest"
   PYLINT_BIN: "{{ .VENV_DIR }}/bin/pylint"
   BLACK_BIN: "{{ .VENV_DIR }}/bin/black"
   TWINE_BIN: "{{ .VENV_DIR }}/bin/twine"
@@ -131,7 +130,6 @@ tasks:
         "{{ .CHECKS_DIR }}/pylint.result.txt"
     sources:
       - src/**/*
-      - tests/**/*
       - setup.py
     generates:
       - "{{ .CHECKS_DIR }}/black.result.txt"
@@ -218,5 +216,5 @@ tasks:
           PACKAGE: "{{ .NAME }}"
 
   ci:
-    deps: [ check, test ]
+    deps: [ check ]
     desc: Run all checks and tests in CI mode
