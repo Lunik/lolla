@@ -41,7 +41,7 @@ class LollaShell(cmd.Cmd):
     """
     ).strip().replace("\n", " ")
     conversation = []
-    files_pattern = re.compile(r"@([a-zA-Z0-9_/\.\~]+)")
+    files_pattern = re.compile(r"@\'?([a-zA-Z0-9-_/\.\~\s]+)\'?")
 
     def __init__(self, app_version, storage, logger, args):
         super().__init__()
@@ -60,6 +60,9 @@ class LollaShell(cmd.Cmd):
 
     def _get_files(self, content):
         return self.files_pattern.findall(content)
+
+    def _clean_files(self, content):
+        return self.files_pattern.sub("", content)
 
     def _load_file(self, path):
         # Return as base64
@@ -267,6 +270,7 @@ class LollaShell(cmd.Cmd):
     def default(self, arg):
         "By default, do chat completion."
         files = self._get_files(arg)
+        arg = self._clean_files(arg)
         self.append_conversation("user", arg, files)
 
         stream = self.ollama_connector.chat(
