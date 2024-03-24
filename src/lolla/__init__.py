@@ -10,7 +10,7 @@ from .lolla import LollaShell
 from .log import LollaLogger
 from .storage import LollaStorage
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
 def main():
