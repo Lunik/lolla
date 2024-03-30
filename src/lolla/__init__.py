@@ -10,7 +10,7 @@ from .lolla import LollaShell
 from .log import LollaLogger
 from .storage import LollaStorage
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 
 def main():
@@ -23,14 +23,18 @@ def main():
 
     logger = LollaLogger(level=args.log_level)
 
+    storage = LollaStorage(home=args.home)
+
+    shell = LollaShell(
+        app_version=__version__, logger=logger, storage=storage, args=args
+    )
+
     def ctrl_c_handler(sig, frame):
-        logger.info("Ctrl-C pressed. Use 'exit' or Ctrl-D to exit.")
+        shell.stop_trigger = True
 
     signal.signal(signal.SIGINT, ctrl_c_handler)
 
-    storage = LollaStorage(home=args.home)
-
-    LollaShell(app_version=__version__, logger=logger, storage=storage, args=args).cmdloop()
+    shell.cmdloop()
 
 
 if __name__ == "__main__":

@@ -31,17 +31,22 @@ from .tools import parse_model
 class LollaShell(cmd.Cmd):
     prompt = "(user) "
 
-    system_messages_content = dedent(
-        """
+    system_messages_content = (
+        dedent(
+            """
         From now on, you are 'Lolla', a virtual assistant that is helping users.
         You are about to chat with a Human user.
         You MUST follow those very important rules during the conversation:
         - You need to respond in the same language as the user.
         - ALWAYS make short answers. You are not verbose.
     """
-    ).strip().replace("\n", " ")
+        )
+        .strip()
+        .replace("\n", " ")
+    )
     conversation = []
     files_pattern = re.compile(r"@\'?([a-zA-Z0-9-_/\.\~\s]+)\'?")
+    stop_trigger = False
 
     def __init__(self, app_version, storage, logger, args):
         super().__init__()
@@ -69,7 +74,7 @@ class LollaShell(cmd.Cmd):
         self.logger.info(f"Loading file '{path}'")
         with open(path, "rb") as file:
             return b64encode(file.read()).decode("utf-8")
-    
+
     def reset_conversation(self):
         self.conversation = [
             {"role": "system", "content": self.system_messages_content}
@@ -91,6 +96,13 @@ class LollaShell(cmd.Cmd):
         self.storage.save_conversation(conversation=self.conversation)
 
     def init_select_model(self):
+        models = self.ollama_connector.list_models()
+        if len(models) == 0:
+            self.logger.info(
+                "No models currently available. Continue with default model"
+            )
+            return
+
         first_model = self.ollama_connector.list_models()[0].get("name")
 
         if self.selected_model:
@@ -106,6 +118,8 @@ class LollaShell(cmd.Cmd):
                 self.selected_model = first_model
         else:
             self.selected_model = first_model
+
+        self.logger.info(f"Selected model '{self.selected_model}' by default")
 
     def preloop(self):
         self.logger.print("Welcome to Lolla\n", style="bold green")
@@ -210,6 +224,8 @@ class LollaShell(cmd.Cmd):
             self.logger.error(error)
 
         self.logger.info(f"Succesfully pulled model {model['full']}")
+        if self.selected_model is None:
+            self.selected_model = model["full"]
 
     def do_delete(self, arg):
         "Delete a model from the server. Usage: delete <model_name>:[version]"
@@ -273,23 +289,35 @@ class LollaShell(cmd.Cmd):
         arg = self._clean_files(arg)
         self.append_conversation("user", arg, files)
 
-        stream = self.ollama_connector.chat(
-            model=self.selected_model, messages=self.conversation
-        )
+        assitant_message = ""
 
-        model = parse_model(self.selected_model)
+        try:
+            stream = self.ollama_connector.chat(
+                model=self.selected_model, messages=self.conversation
+            )
 
-        prefix = f"(lolla/{model['name']})"
-        with Live(prefix, auto_refresh=False) as live:
+            model = parse_model(self.selected_model)
 
-            assitant_message = ""
-            for event in stream:
-                partial_assitant_message = event.get("message", {}).get("content")
-                assitant_message += partial_assitant_message
-                live.update(f"{prefix} {assitant_message}")
-                live.refresh()
+            prefix = f"(lolla/{model['name']})"
+            with Live(prefix, auto_refresh=False) as live:
 
-        self.append_conversation("assistant", assitant_message)
+                self.stop_trigger = False
+                for event in stream:
+
+                    if self.stop_trigger:
+                        self.logger.info("Response stopped by user")
+                        break
+
+                    partial_assitant_message = event.get("message", {}).get("content")
+                    assitant_message += partial_assitant_message
+                    live.update(f"{prefix} {assitant_message}")
+                    live.refresh()
+        except Exception as exception:
+            self.logger.error("An error occured during the conversation")
+            self.logger.debug(exception)
+
+        if assitant_message:
+            self.append_conversation("assistant", assitant_message)
 
     def emptyline(self):
         "Do nothing when an empty line is entered."
